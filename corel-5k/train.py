@@ -79,10 +79,10 @@ def training(train_loader, test_loader, weights):
 
 
             # print statistics for each batch
-            if opt.PRINT_BATCH and (i+1)%opt.NUM_PRINT_BATCH == 0:
+            if opt.PRINT_BATCH and ((i+1)%opt.NUM_PRINT_BATCH == 0):
                 print('Batch/Epoch [%d/%d], Train Loss: %.4f, Train Acc: %.4f, Correct Num: %d'
-                      %(i+1, epoch+1, running_loss/(BATCH_SIZE*opt.NUM_PRINT_BATCH),\
-                       num_correct.data[0]/BATCH_SIZE, num_correct))
+                      %(i+1, epoch+1, running_loss/(opt.BATCH_SIZE*opt.NUM_PRINT_BATCH),\
+                       num_correct.data[0]/opt.BATCH_SIZE, num_correct))
                 running_loss = 0; running_acc = 0
             
         # Save a temp model
@@ -125,7 +125,7 @@ def training(train_loader, test_loader, weights):
 
         # Output results
         print ('Epoch [%d/%d], Train Loss: %.4f, Train Acc: %.4f, Test Loss: %.4f, Test Acc: %.4f' 
-                        %(epoch+1, NUM_EPOCHS, 
+                        %(epoch+1, opt.NUM_EPOCHS, 
                           train_loss / NUM_TRAIN, train_acc / NUM_TRAIN, 
                           test_loss / NUM_TEST, test_acc / NUM_TEST))
         if (test_acc / NUM_TEST) > best_test_acc:

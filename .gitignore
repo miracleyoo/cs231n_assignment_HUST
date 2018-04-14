@@ -1,0 +1,5 @@
+corel-5k/source/
+corel-5k/Datasets/
+*.pyc
+__pycache__/
+cs231n/
