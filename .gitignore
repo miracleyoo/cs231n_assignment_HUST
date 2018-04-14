@@ -3,3 +3,4 @@ corel-5k/Datasets/
 *.pyc
 __pycache__/
 cs231n/
+.ipynb_*
