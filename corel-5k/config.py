@@ -10,6 +10,7 @@ class Config(object):
         self.NET_SAVE_PATH      = "./source/trained_net/"
         self.NUM_EPOCHS         = 50
         self.BATCH_SIZE         = 8
+        self.TOP_NUM            = 4
         self.NUM_WORKERS        = 4
         self.NUM_CLASSES        = 374
         self.LEARNING_RATE      = 0.001 

@@ -123,3 +123,13 @@ def get_mean(ROOT="./Datasets/corel_5k/images/"):
             pickle.dump(image_statistics,f)
     return image_statistics
 
+def folder_init():
+    """
+    Initialize folders required
+    """
+    if os.path.exists('source')            ==False:os.mkdir('source')
+    if os.path.exists('source/log')        ==False:os.mkdir('source/log')
+    if os.path.exists('source/trained_net')==False:os.mkdir('source/trained_net')
+    if os.path.exists('source/val_results')==False:os.mkdir('source/val_results')
+    
+

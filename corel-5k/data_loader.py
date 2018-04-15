@@ -1,6 +1,7 @@
 # coding: utf-8
 from torch.utils.data import Dataset
 from skimage import io,transform
+from PIL import Image
 import numpy as np
 from config import Config
 
@@ -19,7 +20,7 @@ class COREL_5K(Dataset):
         data_path, label = self.data[index]
         label = np.array(label) - 1
         label = np.sum(np.eye(opt.NUM_CLASSES)[label], axis=0) # 374 is the number of labels
-        img = io.imread(data_path)
+        img = Image.open(data_path)
         if self.transform:
-            img = self.transform(img)
-        return img, label.astype(np.float32)
+            sample = self.transform(np.array(img))
+        return sample, label.astype(np.float32), np.array(img.resize((128,128))), (img.size)
