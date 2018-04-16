@@ -18,7 +18,7 @@ class COREL_5K(Dataset):
 
     def __getitem__(self, index):
         data_path, label = self.data[index]
-        label = np.array(label) - 1
+        label = np.array(label) - 1 # the minus 1 here turn 1~374 index into 0~373
         label = np.sum(np.eye(opt.NUM_CLASSES)[label], axis=0) # 374 is the number of labels
         img = Image.open(data_path)
         if self.transform:

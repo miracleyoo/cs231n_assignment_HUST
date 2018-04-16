@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd
 
+import os
 import json
 import datetime
 import numpy as np
@@ -31,11 +32,12 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
     net       = opt.MODEL
 
     print('==> Loading Model ...')
-    try:
-        net   = torch.load(opt.NET_SAVE_PATH+'%s_model_temp.pkl'%(net.__class__.__name__))
-        print("Load existing model: %s"%(opt.NET_SAVE_PATH+'%s_model_temp.pkl'%(net.__class__.__name__)))
-    except:
-        pass
+    temp_model_name = opt.NET_SAVE_PATH+'%s_model_temp.pkl'%(net.__class__.__name__)
+    model_name      = opt.NET_SAVE_PATH+'%s_model.pkl'%(net.__class__.__name__)
+    if os.path.exists(temp_model_name):
+        net   = torch.load()
+        print("Load existing model: %s"%temp_model_name)
+
     if opt.USE_CUDA:net.cuda()
 
     optimizer = torch.optim.Adam(net.parameters(), lr=opt.LEARNING_RATE)
@@ -115,7 +117,7 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
                 running_loss = 0; running_acc = 0
             
         # Save a temp model
-        torch.save(net, opt.NET_SAVE_PATH+'%s_model_temp.pkl'%(net.__class__.__name__))
+        torch.save(net, temp_model_name)
 
         # Start testing
         net.eval()
@@ -178,7 +180,7 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
                           test_loss / NUM_TEST, test_acc / NUM_TEST))
         if (test_acc / NUM_TEST) > best_test_acc:
             best_test_acc = test_acc / NUM_TEST
-            torch.save(net, opt.NET_SAVE_PATH+'%s_model.pkl'%(net.__class__.__name__))
+            torch.save(net, model_name)
             
     print('==> Training Finished.')
     return net
@@ -190,11 +192,9 @@ def validating(val_loader, net, weights, class_names, top_num=1):
     USE_VIZ   = viz.check_connection()
     print("==> Visdom: ",viz.check_connection())
 
-    val_loss  = 0
-    val_acc   = 0 
-    NUM_VAL = len(val_loader)*opt.BATCH_SIZE
+    NUM_VAL     = len(val_loader)*opt.BATCH_SIZE
     NUM_VAL_PER_EPOCH = len(val_loader)
-
+    val_results = ''
     criterion = nn.BCEWithLogitsLoss(weight=weights,size_average=False)
     optimizer = torch.optim.Adam(net.parameters(), lr=opt.LEARNING_RATE)
     if opt.USE_CUDA:net.cuda()
@@ -212,7 +212,7 @@ def validating(val_loader, net, weights, class_names, top_num=1):
         # Compute the outputs and judge correct
         outputs     = net(inputs)
         loss        = criterion(outputs, labels)
-        predicts    = torch.sort(outputs,descending=True)[1][:,:top_num]
+        predicts    = torch.sort(outputs,descending=True)[1][:,:5]
         predicts    = predicts.data
         num_correct = 0
 
@@ -220,30 +220,33 @@ def validating(val_loader, net, weights, class_names, top_num=1):
             labels_data   = labels.cpu().data.numpy()
         else:
             labels_data   = labels.data.numpy()
-            
-        for i, predict in enumerate(predicts):
-            right_flag    = False
-            for label in predict:
-                if label in list(np.where(labels_data[i]==1)[0]):
-                    num_correct += 1
-                    right_flag   = True
-                    break
-            if right_flag == False: 
-                pred_labels = [class_names[label] for label in predict]
-                real_labels = [class_names[label] for label in list(np.where(labels_data[i]==1)[0])]
-                if USE_VIZ:
-                    viz.images(
-                        np.array(Image.fromarray(_[0][i].numpy()).resize((_[1][0][i],_[1][1][i]))).transpose(2, 0, 1),
-                        opts=dict(title="Real:"+" ".join(real_labels), caption="Pred:"+" ".join(pred_labels)))
+        
+        for top_num in range(5):
+            val_loss    = 0
+            val_acc     = 0 
+            num_correct = 0
+            for i, predict in enumerate(predicts):
+                right_flag = False
+                for label in predict:
+                    if label in list(np.where(labels_data[i]==1)[0]):
+                        num_correct += 1
+                        right_flag   = True
+                        break
+                if right_flag == False: 
+                    pred_labels = [class_names[label] for label in predict]
+                    real_labels = [class_names[label] for label in list(np.where(labels_data[i]==1)[0])]
+                    if USE_VIZ:
+                        viz.images(
+                            np.array(Image.fromarray(_[0][i].numpy()).resize((_[1][0][i],_[1][1][i]))).transpose(2, 0, 1),
+                            opts=dict(title="Real:"+" ".join(real_labels), caption="Pred:"+" ".join(pred_labels)))
 
-        # Do statistics for training
-        val_loss  += loss.data[0]
-        val_acc   += num_correct
-
+            # Do statistics for training
+            val_loss   += loss.data[0]
+            val_acc    += num_correct
+            val_results+=("Top %d: Validation Loss:%.4f, Validation Acc:%.4f"%(top_num, val_loss/NUM_VAL, val_acc/NUM_VAL)+'\n')
     # Output results
     t = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     val_file_name = "%s_val_%s.txt"%(net.__class__.__name__, t)
-    val_results   = "Validation Loss:%.4f, Validation Acc:%.4f"%(val_loss/NUM_VAL, val_acc/NUM_VAL)
     with open('./source/val_results/'+val_file_name, 'w+') as fp:
         fp.writelines(val_results)
     print(val_results)
