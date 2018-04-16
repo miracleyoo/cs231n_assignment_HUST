@@ -195,8 +195,10 @@ def validating(val_loader, net, weights, class_names, top_num=1):
     NUM_VAL     = len(val_loader)*opt.BATCH_SIZE
     NUM_VAL_PER_EPOCH = len(val_loader)
     val_results = ''
-    criterion = nn.BCEWithLogitsLoss(weight=weights,size_average=False)
-    optimizer = torch.optim.Adam(net.parameters(), lr=opt.LEARNING_RATE)
+    val_loss    = 0
+    val_acc     = [0]*5
+    criterion   = nn.BCEWithLogitsLoss(weight=weights,size_average=False)
+    optimizer   = torch.optim.Adam(net.parameters(), lr=opt.LEARNING_RATE)
     if opt.USE_CUDA:net.cuda()
 
     net.eval()
@@ -220,14 +222,12 @@ def validating(val_loader, net, weights, class_names, top_num=1):
             labels_data   = labels.cpu().data.numpy()
         else:
             labels_data   = labels.data.numpy()
-        
-        for top_num in range(5):
-            val_loss    = 0
-            val_acc     = 0 
-            num_correct = 0
+
+        for top_num in range(1,6):
+            num_correct         = 0
             for i, predict in enumerate(predicts):
                 right_flag = False
-                for label in predict:
+                for label in predict[:top_num]:
                     if label in list(np.where(labels_data[i]==1)[0]):
                         num_correct += 1
                         right_flag   = True
@@ -241,9 +241,10 @@ def validating(val_loader, net, weights, class_names, top_num=1):
                             opts=dict(title="Real:"+" ".join(real_labels), caption="Pred:"+" ".join(pred_labels)))
 
             # Do statistics for training
-            val_loss   += loss.data[0]
-            val_acc    += num_correct
-            val_results+=("Top %d: Validation Loss:%.4f, Validation Acc:%.4f"%(top_num, val_loss/NUM_VAL, val_acc/NUM_VAL)+'\n')
+            val_acc[top_num-1]  += num_correct
+        val_loss += loss.data[0]
+    for i in range(1,6):
+        val_results+=("Top %d: Validation Loss:%.4f, Validation Acc:%.4f"%(i, val_loss/NUM_VAL, val_acc[i-1]/NUM_VAL)+'\n')
     # Output results
     t = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     val_file_name = "%s_val_%s.txt"%(net.__class__.__name__, t)

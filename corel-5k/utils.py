@@ -51,9 +51,9 @@ def load_data(ROOT="./Datasets/corel_5k/"):
     for i in test_labels:
         test_label_dict[str(i[0])+".jpeg"] = i[1:]
 
-    train_pairs = []
-    val_pairs = []
-    test_pairs = []
+    train_pairs  = []
+    val_pairs    = []
+    test_pairs   = []
     for i in files:
         img_name = i.split("/")[-1]
         if img_name in val_label_dict.keys():

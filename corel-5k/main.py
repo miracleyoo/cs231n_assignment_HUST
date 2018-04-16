@@ -51,7 +51,7 @@ val_loader   = DataLoader(dataset=valDataset,   batch_size=opt.BATCH_SIZE, shuff
 testDataset  = COREL_5K(test_pairs, transform_test)
 test_loader  = DataLoader(dataset=testDataset,  batch_size=opt.BATCH_SIZE, shuffle=False, num_workers=opt.NUM_WORKERS, drop_last=False)
 
-net = training(train_loader, test_loader, weights, class_names, opt.TOP_NUM)
-# net          = opt.MODEL
-# net          = torch.load(opt.NET_SAVE_PATH+'%s_model.pkl'%(net.__class__.__name__))
+# net = training(train_loader, test_loader, weights, class_names, opt.TOP_NUM)
+net          = opt.MODEL
+net          = torch.load(opt.NET_SAVE_PATH+'%s_model.pkl'%(net.__class__.__name__))
 validating(val_loader, net, weights, class_names, opt.TOP_NUM)

@@ -5,7 +5,7 @@ from models import vgg, googlenet
 
 class Config(object):
     def __init__(self):
-        self.MODEL              = googlenet.GoogLeNet()#vgg.VGG('VGG19')
+        self.MODEL              = vgg.VGG('VGG19')#googlenet.GoogLeNet()#vgg.VGG('VGG19')
         self.USE_CUDA           = torch.cuda.is_available()
         self.NET_SAVE_PATH      = "./source/trained_net/"
         self.NUM_EPOCHS         = 50
