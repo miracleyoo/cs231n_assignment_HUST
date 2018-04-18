@@ -16,7 +16,7 @@ opt = Config()
 
 transform_train = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((299, 299)),
+    transforms.Resize((128, 128)),
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(degrees=5),
     transforms.ToTensor(),
@@ -25,7 +25,7 @@ transform_train = transforms.Compose([
 
 transform_test = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((299, 299)),
+    transforms.Resize((128, 128)),
     transforms.ToTensor(),
     transforms.Normalize((0.3854, 0.4005, 0.3472), (0.2524, 0.2410, 0.2504)),
 ])
@@ -51,8 +51,7 @@ val_loader   = DataLoader(dataset=valDataset,   batch_size=opt.BATCH_SIZE, shuff
 testDataset  = COREL_5K(test_pairs, transform_test)
 test_loader  = DataLoader(dataset=testDataset,  batch_size=opt.BATCH_SIZE, shuffle=False, num_workers=opt.NUM_WORKERS, drop_last=False)
 
-net = training(train_loader, test_loader, weights, class_names, opt.TOP_NUM)
+net = training(train_loader,test_loader,weights,opt.TOP_NUM)
 # net          = opt.MODEL
 # net          = torch.load(opt.NET_SAVE_PATH+'%s_model.pkl'%(net.__class__.__name__))
-# print('==> Now testing model:','%s_model.pkl'%(net.__class__.__name__))
-validating(test_loader, net, weights, class_names)
+validating(val_loader, net, weights,opt.TOP_NUM)

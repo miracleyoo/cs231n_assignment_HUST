@@ -32,7 +32,7 @@ def load_data(ROOT="./Datasets/corel_5k/"):
     train_labels = [i.split(" ")[:] for i in train_labels]
     train_labels = [[int(j) for j in i if j != '' and j != '\n']for i in train_labels]
     random.shuffle(train_labels)
-    train_label = train_labels[:]
+    train_label = train_labels[:4000]
     val_label = train_labels[4000:]
 
     train_label_dict = {}
@@ -51,9 +51,9 @@ def load_data(ROOT="./Datasets/corel_5k/"):
     for i in test_labels:
         test_label_dict[str(i[0])+".jpeg"] = i[1:]
 
-    train_pairs  = []
-    val_pairs    = []
-    test_pairs   = []
+    train_pairs = []
+    val_pairs = []
+    test_pairs = []
     for i in files:
         img_name = i.split("/")[-1]
         if img_name in val_label_dict.keys():

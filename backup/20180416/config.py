@@ -1,11 +1,11 @@
 # coding: utf-8
 import torch
 import torch.nn as nn
-from models import vgg, googlenet, densenet, inception_v3
+from models import vgg
 
 class Config(object):
     def __init__(self):
-        self.MODEL              = inception_v3.Inception3(374)#googlenet.GoogLeNet()#vgg.VGG('VGG19')#densenet.DenseNet121()#vgg.VGG('VGG19')#googlenet.GoogLeNet()#vgg.VGG('VGG19')
+        self.MODEL              = vgg.VGG('VGG19')
         self.USE_CUDA           = torch.cuda.is_available()
         self.NET_SAVE_PATH      = "./source/trained_net/"
         self.NUM_EPOCHS         = 50
