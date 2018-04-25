@@ -3,6 +3,8 @@ import torch.nn
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
+import torchvision.models as models
+
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch import autograd
@@ -16,7 +18,7 @@ opt = Config()
 
 transform_train = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((299, 299)),
+    transforms.Resize((300, 300)),
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(degrees=5),
     transforms.ToTensor(),
@@ -25,7 +27,7 @@ transform_train = transforms.Compose([
 
 transform_test = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((299, 299)),
+    transforms.Resize((300, 300)),
     transforms.ToTensor(),
     transforms.Normalize((0.3854, 0.4005, 0.3472), (0.2524, 0.2410, 0.2504)),
 ])
@@ -51,8 +53,16 @@ val_loader   = DataLoader(dataset=valDataset,   batch_size=opt.BATCH_SIZE, shuff
 testDataset  = COREL_5K(test_pairs, transform_test)
 test_loader  = DataLoader(dataset=testDataset,  batch_size=opt.BATCH_SIZE, shuffle=False, num_workers=opt.NUM_WORKERS, drop_last=False)
 
-net = training(train_loader, test_loader, weights, class_names, opt.TOP_NUM)
-# net          = opt.MODEL
-# net          = torch.load(opt.NET_SAVE_PATH+'%s_model.pkl'%(net.__class__.__name__))
-# print('==> Now testing model:','%s_model.pkl'%(net.__class__.__name__))
-validating(test_loader, net, weights, class_names)
+net_list     = [models.inception_v3()]
+                # models.resnet152(),
+                # models.densenet121(),
+                # models.resnet18()]
+
+for net in net_list:
+    net.fc = nn.Linear(2048, 374)
+    net.AuxLogits.fc = nn.Linear(768, 374)
+    net = training(train_loader, test_loader, class_names, net, opt.TOP_NUM)
+    # net          = opt.MODEL
+    # net          = torch.load(opt.NET_SAVE_PATH+'%s_model.pkl'%(net.__class__.__name__))
+    # print('==> Now testing model:','%s_model.pkl'%(net.__class__.__name__))
+    validating(test_loader, net, class_names)

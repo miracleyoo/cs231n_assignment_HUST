@@ -3,6 +3,7 @@ import os
 import math
 import random
 import numpy as np
+import pickle
 
 from skimage import io,transform
 import matplotlib.pyplot as plt
@@ -25,6 +26,7 @@ def load_data(ROOT="./Datasets/corel_5k/"):
     LABROOT = ROOT+'labels/'
     dirs = [IMAROOT+i+"/" for i in next(os.walk(IMAROOT))[1]]
     files = []
+    top100labels = pickle.load(open('./source/data/top100labels.pkl','rb'))
     [files.extend([i+j for j in next(os.walk(i))[2] if "jpeg" in j]) for i in dirs]
 
     with open(LABROOT+"training_label") as f:
@@ -37,11 +39,15 @@ def load_data(ROOT="./Datasets/corel_5k/"):
 
     train_label_dict = {}
     for i in train_label:
-        train_label_dict[str(i[0])+".jpeg"] = i[1:]
+        temp = [lab for lab in i[1:] if lab in top100labels]
+        if temp!=[]:
+            train_label_dict[str(i[0])+".jpeg"] = temp
         
     val_label_dict = {}
     for i in val_label:
-        val_label_dict[str(i[0])+".jpeg"] = i[1:]
+        temp = [lab for lab in i[1:] if lab in top100labels]
+        if temp!=[]:
+            val_label_dict[str(i[0])+".jpeg"] = temp
         
     with open(LABROOT+"test_label") as f:
         test_labels = f.readlines()
@@ -49,7 +55,9 @@ def load_data(ROOT="./Datasets/corel_5k/"):
     test_labels = [[int(j) for j in i if j != '' and j != '\n']for i in test_labels]
     test_label_dict = {}
     for i in test_labels:
-        test_label_dict[str(i[0])+".jpeg"] = i[1:]
+        temp = [lab for lab in i[1:] if lab in top100labels]
+        if temp!=[]:
+            test_label_dict[str(i[0])+".jpeg"] = temp
 
     train_pairs  = []
     val_pairs    = []
@@ -63,6 +71,7 @@ def load_data(ROOT="./Datasets/corel_5k/"):
         elif img_name in train_label_dict.keys():
             train_pairs.append((i, train_label_dict[img_name]))
 
+    print(len(train_pairs),len(test_pairs),train_pairs[1][1])
     return files, train_pairs, val_pairs, test_pairs
 
 def load_class(ROOT="./Datasets/corel_5k/labels/"):

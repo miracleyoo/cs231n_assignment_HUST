@@ -4,6 +4,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd
+import pickle
 
 import os
 import json
@@ -16,7 +17,18 @@ from tqdm import tqdm
 from config import Config
 from PIL import Image
 
-def training(train_loader, test_loader, weights, class_names, top_num=1):
+def get_ave_acc(acc_dict,num_dict,opt):
+    res_dict={}
+    ave_acc=0
+    for i in acc_dict.keys():
+        if num_dict[i]!=0:
+            res_dict[i]=acc_dict[i]/num_dict[i]
+            ave_acc+=res_dict[i]
+    ave_acc=ave_acc/opt.NUM_CLASSES
+    return ave_acc,res_dict
+
+
+def training(train_loader, test_loader, class_names, net, top_num=1):
 
     opt       = Config()
     viz       = visdom.Visdom()
@@ -27,9 +39,16 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
     NUM_TEST  = len(test_loader) *opt.BATCH_SIZE
     NUM_TRAIN_PER_EPOCH = len(train_loader)
     NUM_TEST_PER_EPOCH  = len(test_loader )
+    top100labels = pickle.load(open('./source/data/top100labels.pkl','rb'))
 
-    criterion = nn.BCEWithLogitsLoss(weight=weights,size_average=False)
-    net       = opt.MODEL
+    criterion = nn.BCEWithLogitsLoss(size_average=False)
+    # net       = opt.MODEL
+    # net.fc = nn.Linear(2048, 374)
+    # net.AuxLogits.fc = nn.Linear(768, 374)
+    for para in list(net.parameters()):
+        para.requires_grad=False
+    for para in list(net.fc.parameters())+list(net.AuxLogits.fc.parameters()):
+        para.requires_grad=True
 
     print('==> Loading Model ...')
     temp_model_name = opt.NET_SAVE_PATH+'%s_model_temp.pkl'%(net.__class__.__name__)
@@ -40,10 +59,14 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
 
     if opt.USE_CUDA:net.cuda()
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=opt.LEARNING_RATE)
+    optimizer = torch.optim.Adam(list(net.fc.parameters())+list(net.AuxLogits.fc.parameters()), lr=opt.LEARNING_RATE)
 
-    train_recorder= {'loss':[],'acc':[],'epoch_loss':[],'epoch_acc':[]}
-    test_recorder = {'loss':[],'acc':[]}
+    train_recorder   = {'loss':[],'acc':[],'epoch_loss':[],'epoch_acc':[],'ave_acc':[]}
+    test_recorder    = {'loss':[],'acc':[],'ave_acc':[]}
+    class_train_acc  = dict().fromkeys(top100labels, 0)
+    class_test_acc   = dict().fromkeys(top100labels, 0)
+    class_train_num  = dict().fromkeys(top100labels, 0)
+    class_test_num   = dict().fromkeys(top100labels, 0)
 
     best_test_acc    = 0
     for epoch in range(opt.NUM_EPOCHS):
@@ -53,7 +76,10 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
         test_acc     = 0
         train_loss   = 0
         train_acc    = 0
-
+        class_train_acc  = dict().fromkeys(top100labels, 0)
+        class_test_acc   = dict().fromkeys(top100labels, 0)
+        class_train_num  = dict().fromkeys(top100labels, 0)
+        class_test_num   = dict().fromkeys(top100labels, 0)
         # Start training
         net.train()
         if USE_VIZ:
@@ -69,19 +95,22 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
             
             # zero the parameter gradients
             optimizer.zero_grad()
-
+            
             # forward + backward + optimize
-            outputs = net(inputs)
+            out_Aux, outputs = net(inputs)
+
             loss    = criterion(outputs, labels)
+            loss_Aux= criterion(out_Aux, labels)
+            loss    = loss+loss_Aux
             loss.backward()
             optimizer.step()
 
             # Do statistics for training
             train_loss   += loss.data[0]
             running_loss += loss.data[0]
-            predicts    = torch.sort(outputs,descending=True)[1][:,:top_num]
-            predicts    = predicts.data
-            num_correct = 0
+            predicts      = torch.sort((outputs+out_Aux),descending=True)[1][:,:top_num]
+            predicts      = predicts.data
+            num_correct   = 0
 
             if opt.USE_CUDA:
                 labels_data   = labels.cpu().data.numpy()
@@ -91,11 +120,14 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
             for i, predict in enumerate(predicts):
                 right_flag    = False
                 for label in predict:
-                    if label in list(np.where(labels_data[i]==1)[0]):
-                        num_correct += 1
-                        right_flag   = True
-                        break
-                if right_flag == False: 
+                    if label in top100labels:
+                        class_train_num[label]+=1
+                        if label in list(np.where(labels_data[i]==1)[0]):
+                            right_flag      = True
+                            class_train_acc[label]+=1
+                        if right_flag == True:
+                            num_correct += 1
+                if right_flag  == False: 
                     pred_labels = [class_names[label] for label in predict]
                     real_labels = [class_names[label] for label in list(np.where(labels_data[i]==1)[0])]
                     if USE_VIZ:
@@ -107,14 +139,8 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
             running_acc  += num_correct
             train_recorder['loss'].append(loss.data[0])
             train_recorder['acc' ].append(num_correct)
-
-
-            # print statistics for each batch
-            if opt.PRINT_BATCH and ((i+1)%opt.NUM_PRINT_BATCH == 0):
-                print('Batch/Epoch [%d/%d], Train Loss: %.4f, Train Acc: %.4f, Correct Num: %d'
-                      %(i+1, epoch+1, running_loss/(opt.BATCH_SIZE*opt.NUM_PRINT_BATCH),\
-                       num_correct.data[0]/opt.BATCH_SIZE, num_correct))
-                running_loss = 0; running_acc = 0
+            ave_acc,res_dict = get_ave_acc(class_train_acc,class_train_num,opt)
+            train_recorder['ave_acc'].append(ave_acc)
             
         # Save a temp model
         torch.save(net, temp_model_name)
@@ -131,7 +157,8 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
                 inputs, labels = Variable(inputs), Variable(labels)
                 
             # Compute the outputs and judge correct
-            outputs     = net(inputs)
+            outputs = net(inputs)
+            
             loss        = criterion(outputs, labels)
             predicts    = torch.sort(outputs,descending=True)[1][:,:top_num]
             predicts    = predicts.data
@@ -145,10 +172,13 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
             for i, predict in enumerate(predicts):
                 right_flag    = False
                 for label in predict:
-                    if label in list(np.where(labels_data[i]==1)[0]):
-                        num_correct += 1
-                        right_flag   = True
-                        break
+                    if label in top100labels:
+                        class_test_num[label]+=1
+                        if label in list(np.where(labels_data[i]==1)[0]):
+                            right_flag   = True
+                            class_test_acc[label]+=1
+                        if right_flag == True:
+                            num_correct += 1
                 if right_flag == False: 
                     pred_labels = [class_names[label] for label in predict]
                     real_labels = [class_names[label] for label in list(np.where(labels_data[i]==1)[0])]
@@ -166,7 +196,9 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
         train_recorder['epoch_acc' ].append(train_acc  / NUM_TRAIN)
         test_recorder['loss'].append(test_loss / NUM_TEST)
         test_recorder['acc' ].append(test_acc  / NUM_TEST)
-
+        ave_acc,res_dict = get_ave_acc(class_test_acc,class_test_num,opt)
+        test_recorder['ave_acc'].append(ave_acc)
+        print(ave_acc)
         # Write log to files
         t = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         log_file_name = "%s_epoch_%d_%s.txt"%(net.__class__.__name__, epoch, t)
@@ -174,10 +206,10 @@ def training(train_loader, test_loader, weights, class_names, top_num=1):
             json.dump({'train_recorder':train_recorder,'test_recorder':test_recorder}, fp)
 
         # Output results
-        print ('Epoch [%d/%d], Train Loss: %.4f, Train Acc: %.4f, Test Loss: %.4f, Test Acc: %.4f' 
+        print ('Epoch [%d/%d], Train Loss: %.4f, Train Acc: %.4f, Train Ave Acc: %.4f, Test Loss: %.4f, Test Acc: %.4f, Test Ave Acc: %.4f'  
                         %(epoch+1, opt.NUM_EPOCHS, 
-                          train_loss / NUM_TRAIN, train_acc / NUM_TRAIN, 
-                          test_loss / NUM_TEST, test_acc / NUM_TEST))
+                          train_loss / NUM_TRAIN, train_acc / NUM_TRAIN, train_recorder['ave_acc'][-1],
+                          test_loss / NUM_TEST, test_acc / NUM_TEST, test_recorder['ave_acc'][-1]))
         if (test_acc / NUM_TEST) > best_test_acc:
             best_test_acc = test_acc / NUM_TEST
             torch.save(net, model_name)
@@ -198,7 +230,6 @@ def validating(val_loader, net, weights, class_names):
     val_loss    = 0
     val_acc     = [0]*5
     criterion   = nn.BCEWithLogitsLoss(weight=weights,size_average=False)
-    optimizer   = torch.optim.Adam(net.parameters(), lr=opt.LEARNING_RATE)
     if opt.USE_CUDA:net.cuda()
 
     net.eval()
@@ -212,9 +243,12 @@ def validating(val_loader, net, weights, class_names):
             inputs, labels = Variable(inputs), Variable(labels)
             
         # Compute the outputs and judge correct
-        outputs     = net(inputs)
+        out_Aux, outputs = net(inputs)
+        
         loss        = criterion(outputs, labels)
-        predicts    = torch.sort(outputs,descending=True)[1][:,:5]
+        loss_Aux    = criterion(out_Aux, labels)
+        loss        = loss+loss_Aux
+        predicts    = torch.sort((outputs+out_Aux),descending=True)[1][:,:5]
         predicts    = predicts.data
         num_correct = 0
 
